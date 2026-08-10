@@ -4,6 +4,8 @@ import * as Postgres from "@spinframework/spin-postgres";
 import * as Variables from "@spinframework/spin-variables";
 // @ts-ignore
 import * as Kv from "@spinframework/spin-kv";
+// @ts-ignore
+import * as Redis from "@spinframework/spin-redis";
 import { AutoRouter } from "itty-router";
 import { v4 as uuidv4, validate as uuidValidate } from "uuid";
 
@@ -81,6 +83,12 @@ router.get("/", () => ok({
       "GET  /kv/:key",
       "POST /kv/:key",
       "DELETE /kv/:key",
+    ],
+    redis: [
+      "GET  /redis/ping",
+      "GET  /redis/:key",
+      "POST /redis/:key",
+      "DELETE /redis/:key",
     ],
   },
 }));
@@ -284,6 +292,65 @@ router.delete("/kv/:key", ({ params }) => {
   }
 });
 
+// --- Outbound Redis ----------------------------------------------------------
+
+function getRedisConn(extra: any) {
+  const addr = String(extra?.redisConnectionString ?? "redis://localhost:6379");
+  return Redis.open(addr);
+}
+
+// PING — verify connectivity
+router.get("/redis/ping", (_, extra) => {
+  try {
+    const conn = getRedisConn((extra as any));
+    const result = conn.execute("PING", []);
+    const msg = result[0]?.tag === "status" ? result[0].val : String(result[0]);
+    return ok({ redis: msg });
+  } catch (e: any) {
+    return serverError(errMsg(e));
+  }
+});
+
+// SET string value
+router.post("/redis/:key", async (request, extra) => {
+  const { key } = request.params;
+  const body = await request.arrayBuffer();
+  if (!body) return badRequest("Missing value (send as plain text)");
+
+  try {
+    const conn = getRedisConn((extra as any));
+    conn.set(key, new Uint8Array(body));
+    return ok({ status: "set", key });
+  } catch (e: any) {
+    return serverError(errMsg(e));
+  }
+});
+
+// GET string value
+router.get("/redis/:key", ({ params }, extra) => {
+  const { key } = params;
+  try {
+    const conn = getRedisConn((extra as any));
+    const val = conn.get(key);
+    if (!val) return notFound(`Key "${key}" not found`);
+    return ok({ key, value: decoder.decode(val) });
+  } catch (e: any) {
+    return serverError(errMsg(e));
+  }
+});
+
+// DELETE key
+router.delete("/redis/:key", ({ params }, extra) => {
+  const { key } = params;
+  try {
+    const conn = getRedisConn((extra as any));
+    conn.del([key]);
+    return ok({ status: "deleted", key });
+  } catch (e: any) {
+    return serverError(errMsg(e));
+  }
+});
+
 // 404
 router.all("*", () => notFound("Endpoint not found"));
 
@@ -293,10 +360,14 @@ router.all("*", () => notFound("Endpoint not found"));
 
 // @ts-ignore
 addEventListener("fetch", (event: FetchEvent) => {
-  // Force to plain string — Variables.get() might return a Wasm host object
+  // Force to plain string — Spin variables may return Wasm host objects
   const connStr = String(Variables.get("pg_connection_string") ?? "");
+  const redisConnStr = String(Variables.get("redis_connection_string") ?? "redis://localhost:6379");
 
   event.respondWith(
-    router.fetch(event.request, { connectionString: connStr }),
+    router.fetch(event.request, {
+      connectionString: connStr,
+      redisConnectionString: redisConnStr,
+    }),
   );
 });
