@@ -1,6 +1,0 @@
-#!/bin/bash
-# Copy this file to start.sh (gitignored) and fill in your connection string.
-export SPIN_VARIABLE_PG_CONNECTION_STRING="postgresql://..."
-export PATH="$HOME/.nvm/versions/node/v24.18.0/bin:$PATH"
-cd "$(dirname "$0")"
-spin up

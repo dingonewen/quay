@@ -1,5 +1,0 @@
-#!/bin/bash
-# Copy this file to deploy.sh (gitignored) and fill in your connection string.
-export PATH="$HOME/.nvm/versions/node/v24.18.0/bin:$PATH"
-cd "$(dirname "$0")"
-spin aka deploy --variable pg_connection_string="postgresql://..."
