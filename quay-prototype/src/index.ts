@@ -63,6 +63,18 @@ function errMsg(e: any): string {
 
 const router = AutoRouter();
 
+// --- HOME ------------------------------------------------------------------
+router.get("/", () => ok({
+  service: "quay-prototype — Spin PostgreSQL API",
+  endpoints: [
+    "GET  /products",
+    "GET  /products/:id",
+    "POST /products",
+    "PUT  /products/:id",
+    "DELETE /products/:id",
+  ],
+}));
+
 // --- CREATE ----------------------------------------------------------------
 router.post("/products", async (request, extra) => {
   const connStr = String((extra as any).connectionString ?? "");
