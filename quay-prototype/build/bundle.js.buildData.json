@@ -1,6 +1,0 @@
-{
-  "version": "0.19.3",
-  "checksum": "d5101462e5784e29c2471105085abf61d8fa48a0a48320b2801cd656114f53d8",
-  "runtimeArgs": "--init-location http://quay-prototype.localhost",
-  "targetWitChecksum": "082ad07323339ee5fdc95d488c01c6a930e0f697d7f1ee671a0ed4335cb54ed4"
-}
