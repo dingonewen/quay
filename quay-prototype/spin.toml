@@ -18,7 +18,7 @@ component = "quay-prototype"
 source = "dist/quay-prototype.wasm"
 exclude_files = ["**/node_modules"]
 allowed_outbound_hosts = [
-    "postgres://*:*",
+    "postgres://ep-royal-grass-axm820dc.c-4.us-east-2.aws.neon.tech:5432",
 ]
 key_value_stores = ["default"]
 
