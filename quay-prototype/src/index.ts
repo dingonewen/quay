@@ -2,6 +2,8 @@
 import * as Postgres from "@spinframework/spin-postgres";
 // @ts-ignore
 import * as Variables from "@spinframework/spin-variables";
+// @ts-ignore
+import * as Kv from "@spinframework/spin-kv";
 import { AutoRouter } from "itty-router";
 import { v4 as uuidv4, validate as uuidValidate } from "uuid";
 
@@ -65,14 +67,22 @@ const router = AutoRouter();
 
 // --- HOME ------------------------------------------------------------------
 router.get("/", () => ok({
-  service: "quay-prototype — Spin PostgreSQL API",
-  endpoints: [
-    "GET  /products",
-    "GET  /products/:id",
-    "POST /products",
-    "PUT  /products/:id",
-    "DELETE /products/:id",
-  ],
+  service: "quay-prototype — Spin PostgreSQL + KV + Redis API",
+  endpoints: {
+    postgres: [
+      "GET  /products",
+      "GET  /products/:id",
+      "POST /products",
+      "PUT  /products/:id",
+      "DELETE /products/:id",
+    ],
+    kv: [
+      "GET  /kv",
+      "GET  /kv/:key",
+      "POST /kv/:key",
+      "DELETE /kv/:key",
+    ],
+  },
 }));
 
 // --- CREATE ----------------------------------------------------------------
@@ -208,6 +218,67 @@ router.delete("/products/:id", async (request, extra) => {
     if (deletedRows === 0n) return notFound("Product not found");
 
     return new Response(null, { status: 204 });
+  } catch (e: any) {
+    return serverError(errMsg(e));
+  }
+});
+
+// --- KV Store ----------------------------------------------------------------
+
+let kvStore: ReturnType<typeof Kv.openDefault> | null = null;
+function getKv() {
+  if (!kvStore) kvStore = Kv.openDefault();
+  return kvStore;
+}
+
+// List all keys
+router.get("/kv", () => {
+  try {
+    return ok({ keys: getKv().getKeys() });
+  } catch (e: any) {
+    return serverError(errMsg(e));
+  }
+});
+
+// Get JSON value by key
+router.get("/kv/:key", ({ params }) => {
+  const { key } = params;
+  try {
+    const kv = getKv();
+    if (!kv.exists(key)) return notFound(`Key "${key}" not found`);
+    return ok({ key, value: kv.getJson(key) });
+  } catch (e: any) {
+    return serverError(errMsg(e));
+  }
+});
+
+// Set JSON value by key
+router.post("/kv/:key", async (request) => {
+  const { key } = request.params;
+  const body = await request.arrayBuffer();
+  if (!body) return badRequest("Missing request body");
+
+  let payload: any;
+  try {
+    payload = JSON.parse(decoder.decode(body));
+  } catch {
+    return badRequest("Invalid JSON body");
+  }
+
+  try {
+    getKv().setJson(key, payload);
+    return ok({ status: "stored", key });
+  } catch (e: any) {
+    return serverError(errMsg(e));
+  }
+});
+
+// Delete key
+router.delete("/kv/:key", ({ params }) => {
+  const { key } = params;
+  try {
+    getKv().delete(key);
+    return ok({ status: "deleted", key });
   } catch (e: any) {
     return serverError(errMsg(e));
   }
