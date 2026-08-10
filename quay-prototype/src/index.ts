@@ -48,6 +48,15 @@ function serverError(msg: string): Response {
   return ok({ error: msg }, 500);
 }
 
+/** Extract a readable message from a Spin error (has .payload, not .message) */
+function errMsg(e: any): string {
+  if (!e) return "Unknown error";
+  if (typeof e === "string") return e;
+  if (e.payload) return typeof e.payload === "string" ? e.payload : JSON.stringify(e.payload);
+  if (e.message) return e.message;
+  return String(e);
+}
+
 // ---------------------------------------------------------------------------
 // Router
 // ---------------------------------------------------------------------------
@@ -87,7 +96,7 @@ router.post("/products", async (request, extra) => {
       },
     });
   } catch (e: any) {
-    return serverError(e?.message ?? String(e));
+    return serverError(errMsg(e));
   }
 });
 
@@ -107,7 +116,7 @@ router.get("/products", async (_, extra) => {
     }));
     return ok(items);
   } catch (e: any) {
-    return serverError(e?.message ?? String(e));
+    return serverError(errMsg(e));
   }
 });
 
@@ -129,7 +138,7 @@ router.get("/products/:id", async (request, extra) => {
     const row = result.rows[0];
     return ok({ id: row["id"], name: row["name"], price: row["price"] });
   } catch (e: any) {
-    return serverError(e?.message ?? String(e));
+    return serverError(errMsg(e));
   }
 });
 
@@ -167,7 +176,7 @@ router.put("/products/:id", async (request, extra) => {
 
     return ok({ id, name: payload.name, price: payload.price });
   } catch (e: any) {
-    return serverError(e?.message ?? String(e));
+    return serverError(errMsg(e));
   }
 });
 
@@ -188,7 +197,7 @@ router.delete("/products/:id", async (request, extra) => {
 
     return new Response(null, { status: 204 });
   } catch (e: any) {
-    return serverError(e?.message ?? String(e));
+    return serverError(errMsg(e));
   }
 });
 
