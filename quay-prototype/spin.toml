@@ -1,0 +1,30 @@
+spin_manifest_version = 2
+
+[application]
+authors = ["Yiwen Ding <dingywn@seas.upenn.edu>"]
+description = "PostgreSQL prototype on Akamai Functions"
+name = "quay-prototype"
+version = "0.1.0"
+targets = ["akamai-functions"]
+
+[variables]
+pg_connection_string = { required = true }
+
+[[trigger.http]]
+route = "/..."
+component = "quay-prototype"
+
+[component.quay-prototype]
+source = "dist/quay-prototype.wasm"
+exclude_files = ["**/node_modules"]
+allowed_outbound_hosts = [
+    "postgres://*:*",
+]
+key_value_stores = ["default"]
+
+[component.quay-prototype.variables]
+pg_connection_string = "{{ pg_connection_string }}"
+
+[component.quay-prototype.build]
+command = ["npm install", "npm run build"]
+watch = ["src/**/*.ts"]
