@@ -1,0 +1,29 @@
+{
+  "name": "quay-prototype",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "node build.mjs && mkdirp dist && j2w -i build/bundle.js --initLocation http://quay-prototype.localhost -o dist/quay-prototype.wasm",
+    "build:debug": "node build.mjs && mkdirp dist && j2w -d -i build/bundle.js --initLocation http://quay-prototype.localhost -o dist/quay-prototype.wasm",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/uuid": "^10.0.0",
+    "esbuild": "^0.25.8",
+    "mkdirp": "^3.0.1",
+    "ts-loader": "^9.4.1",
+    "typescript": "^4.8.4"
+  },
+  "dependencies": {
+    "@spinframework/build-tools": "^1.0.4",
+    "@spinframework/spin-postgres": "^2.0.0",
+    "@spinframework/spin-variables": "^1.0.1",
+    "@spinframework/wasi-http-proxy": "^1.0.0",
+    "itty-router": "^5.0.18",
+    "uuid": "^14.0.1"
+  }
+}
