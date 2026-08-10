@@ -3,3 +3,5 @@ dist
 target
 .spin/
 build/
+start.sh
+deploy.sh
