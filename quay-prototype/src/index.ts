@@ -172,7 +172,7 @@ router.put("/products/:id", async (request, extra) => {
       payload.price,
       id,
     ]);
-    if (updatedRows === 0) return notFound("Product not found");
+    if (updatedRows === 0n) return notFound("Product not found");
 
     return ok({ id, name: payload.name, price: payload.price });
   } catch (e: any) {
@@ -193,7 +193,7 @@ router.delete("/products/:id", async (request, extra) => {
   try {
     const conn = Postgres.open(connStr);
     const deletedRows = conn.execute(SQL_DELETE_BY_ID, [id]);
-    if (deletedRows === 0) return notFound("Product not found");
+    if (deletedRows === 0n) return notFound("Product not found");
 
     return new Response(null, { status: 204 });
   } catch (e: any) {
