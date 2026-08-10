@@ -1,12 +1,9 @@
-import { AutoRouter } from "itty-router";
-import { v4 as uuidv4, validate as uuidValidate } from "uuid";
-
-// Spin PostgreSQL and Variables — these are Wasm host bindings
-// with no TypeScript types; use require-style runtime imports.
+// @ts-ignore — Spin Wasm host bindings, no types
+import * as Postgres from "@spinframework/spin-postgres";
 // @ts-ignore
 import * as Variables from "@spinframework/spin-variables";
-// @ts-ignore
-import * as Postgres from "@spinframework/spin-postgres";
+import { AutoRouter } from "itty-router";
+import { v4 as uuidv4, validate as uuidValidate } from "uuid";
 
 // ---------------------------------------------------------------------------
 // SQL
@@ -27,22 +24,28 @@ const SQL_DELETE_BY_ID =
 // Helpers
 // ---------------------------------------------------------------------------
 
-const DEFAULT_HEADERS = { "content-type": "application/json" };
+const HEADERS_JSON = { "content-type": "application/json" };
 const decoder = new TextDecoder();
 
-function json(data: unknown, status = 200): Response {
+/** Always return a Response — never a plain object — to avoid itty-router's
+ *  auto-format handler calling JSON.stringify on a non-plain value. */
+function ok(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: DEFAULT_HEADERS,
+    headers: HEADERS_JSON,
   });
 }
 
-function badRequest(message: string): Response {
-  return json({ message }, 400);
+function badRequest(msg: string): Response {
+  return ok({ error: msg }, 400);
 }
 
-function notFound(message: string): Response {
-  return json({ message }, 404);
+function notFound(msg: string): Response {
+  return ok({ error: msg }, 404);
+}
+
+function serverError(msg: string): Response {
+  return ok({ error: msg }, 500);
 }
 
 // ---------------------------------------------------------------------------
@@ -53,7 +56,9 @@ const router = AutoRouter();
 
 // --- CREATE ----------------------------------------------------------------
 router.post("/products", async (request, extra) => {
-  const connStr = (extra as any).connectionString as string;
+  const connStr = String((extra as any).connectionString ?? "");
+  if (!connStr) return serverError("Missing connection string");
+
   const body = await request.arrayBuffer();
   if (!body) return badRequest("Missing request body");
 
@@ -61,60 +66,78 @@ router.post("/products", async (request, extra) => {
   try {
     payload = JSON.parse(decoder.decode(body));
   } catch {
-    return badRequest("Invalid JSON");
+    return badRequest("Invalid JSON body");
   }
   if (!payload.name || typeof payload.price !== "number") {
     return badRequest(
-      'Invalid payload. Expected {"name": "…", "price": 9.99}',
+      'Expected {"name": "...", "price": 9.99}',
     );
   }
 
-  const product = { id: uuidv4(), name: payload.name, price: payload.price };
-  const conn = Postgres.open(connStr);
-  conn.execute(SQL_CREATE, [product.id, product.name, product.price]);
+  try {
+    const product = { id: uuidv4(), name: payload.name, price: payload.price };
+    const conn = Postgres.open(connStr);
+    conn.execute(SQL_CREATE, [product.id, product.name, product.price]);
 
-  return new Response(JSON.stringify(product), {
-    status: 201,
-    headers: {
-      ...DEFAULT_HEADERS,
-      Location: `/products/${product.id}`,
-    },
-  });
+    return new Response(JSON.stringify(product), {
+      status: 201,
+      headers: {
+        ...HEADERS_JSON,
+        Location: `/products/${product.id}`,
+      },
+    });
+  } catch (e: any) {
+    return serverError(e?.message ?? String(e));
+  }
 });
 
 // --- READ ALL --------------------------------------------------------------
 router.get("/products", async (_, extra) => {
-  const connStr = (extra as any).connectionString as string;
-  const conn = Postgres.open(connStr);
-  const result = conn.query(SQL_READ_ALL, []);
+  const connStr = String((extra as any).connectionString ?? "");
+  if (!connStr) return serverError("Missing connection string");
 
-  const items = result.rows.map((row: any) => ({
-    id: row["id"],
-    name: row["name"],
-    price: row["price"],
-  }));
-  return json(items);
+  try {
+    const conn = Postgres.open(connStr);
+    const result = conn.query(SQL_READ_ALL, []);
+
+    const items = result.rows.map((row: any) => ({
+      id: row["id"],
+      name: row["name"],
+      price: row["price"],
+    }));
+    return ok(items);
+  } catch (e: any) {
+    return serverError(e?.message ?? String(e));
+  }
 });
 
 // --- READ BY ID ------------------------------------------------------------
 router.get("/products/:id", async (request, extra) => {
-  const connStr = (extra as any).connectionString as string;
+  const connStr = String((extra as any).connectionString ?? "");
+  if (!connStr) return serverError("Missing connection string");
+
   const { id } = request.params;
   if (!id || !uuidValidate(id)) {
     return badRequest("Invalid product ID (must be a UUID)");
   }
 
-  const conn = Postgres.open(connStr);
-  const result = conn.query(SQL_READ_BY_ID, [id]);
-  if (result.rows.length === 0) return notFound("Product not found");
+  try {
+    const conn = Postgres.open(connStr);
+    const result = conn.query(SQL_READ_BY_ID, [id]);
+    if (result.rows.length === 0) return notFound("Product not found");
 
-  const row = result.rows[0];
-  return json({ id: row["id"], name: row["name"], price: row["price"] });
+    const row = result.rows[0];
+    return ok({ id: row["id"], name: row["name"], price: row["price"] });
+  } catch (e: any) {
+    return serverError(e?.message ?? String(e));
+  }
 });
 
 // --- UPDATE ----------------------------------------------------------------
 router.put("/products/:id", async (request, extra) => {
-  const connStr = (extra as any).connectionString as string;
+  const connStr = String((extra as any).connectionString ?? "");
+  if (!connStr) return serverError("Missing connection string");
+
   const { id } = request.params;
   if (!id || !uuidValidate(id)) {
     return badRequest("Invalid product ID (must be a UUID)");
@@ -125,59 +148,63 @@ router.put("/products/:id", async (request, extra) => {
   try {
     payload = JSON.parse(decoder.decode(body));
   } catch {
-    return badRequest("Invalid JSON");
+    return badRequest("Invalid JSON body");
   }
   if (!payload.name || typeof payload.price !== "number") {
     return badRequest(
-      'Invalid payload. Expected {"name": "…", "price": 9.99}',
+      'Expected {"name": "...", "price": 9.99}',
     );
   }
 
-  const conn = Postgres.open(connStr);
-  const updatedRows = conn.execute(SQL_UPDATE_BY_ID, [
-    payload.name,
-    payload.price,
-    id,
-  ]);
-  if (updatedRows === 0) return notFound("Product not found");
+  try {
+    const conn = Postgres.open(connStr);
+    const updatedRows = conn.execute(SQL_UPDATE_BY_ID, [
+      payload.name,
+      payload.price,
+      id,
+    ]);
+    if (updatedRows === 0) return notFound("Product not found");
 
-  return json({ id, name: payload.name, price: payload.price });
+    return ok({ id, name: payload.name, price: payload.price });
+  } catch (e: any) {
+    return serverError(e?.message ?? String(e));
+  }
 });
 
 // --- DELETE ----------------------------------------------------------------
 router.delete("/products/:id", async (request, extra) => {
-  const connStr = (extra as any).connectionString as string;
+  const connStr = String((extra as any).connectionString ?? "");
+  if (!connStr) return serverError("Missing connection string");
+
   const { id } = request.params;
   if (!id || !uuidValidate(id)) {
     return badRequest("Invalid product ID (must be a UUID)");
   }
 
-  const conn = Postgres.open(connStr);
-  const deletedRows = conn.execute(SQL_DELETE_BY_ID, [id]);
-  if (deletedRows === 0) return notFound("Product not found");
+  try {
+    const conn = Postgres.open(connStr);
+    const deletedRows = conn.execute(SQL_DELETE_BY_ID, [id]);
+    if (deletedRows === 0) return notFound("Product not found");
 
-  return new Response(null, { status: 204 });
+    return new Response(null, { status: 204 });
+  } catch (e: any) {
+    return serverError(e?.message ?? String(e));
+  }
 });
 
-// 404 for unmatched routes
+// 404
 router.all("*", () => notFound("Endpoint not found"));
 
 // ---------------------------------------------------------------------------
 // Spin entry-point
 // ---------------------------------------------------------------------------
 
-// @ts-ignore — Spin FetchEvent
+// @ts-ignore
 addEventListener("fetch", (event: FetchEvent) => {
-  const connectionString = Variables.get("pg_connection_string");
-  if (!connectionString) {
-    return event.respondWith(
-      new Response(
-        JSON.stringify({ message: "Connection string not configured" }),
-        { status: 500, headers: DEFAULT_HEADERS },
-      ),
-    );
-  }
+  // Force to plain string — Variables.get() might return a Wasm host object
+  const connStr = String(Variables.get("pg_connection_string") ?? "");
+
   event.respondWith(
-    router.fetch(event.request, { connectionString }),
+    router.fetch(event.request, { connectionString: connStr }),
   );
 });
