@@ -20,7 +20,7 @@ source = "dist/quay-prototype.wasm"
 exclude_files = ["**/node_modules"]
 allowed_outbound_hosts = [
     "postgres://ep-royal-grass-axm820dc.c-4.us-east-2.aws.neon.tech:5432",
-    "redis://*:*",
+    "redis://sofa-root-gardenia-30466.db.redis.io:19444",
 ]
 key_value_stores = ["default"]
 
