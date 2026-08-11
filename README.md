@@ -42,8 +42,10 @@ Wasm has no TCP sockets. Every database call crosses the Wasm boundary into Spin
 | Infrastructure | Platform-managed (Akamai) | User-provisioned (Redis Cloud) |
 | Scope | App-scoped, isolated | Shared instance |
 | Replication | Automatic global replication | Depends on your Redis config |
-| API surface | `exists` `getJson` `setJson` `getKeys` `delete` | Full Redis: `PING` `GET` `SET` `DEL` `EXECUTE` `PUBLISH` |
-| Pub/Sub | Not supported | Supported (function publishes/subscribes) |
+| API surface | `exists` `getJson` `setJson` `getKeys` `delete` | Full Redis: `PING` `GET` `SET` `DEL` `INCR` `SETEX` `PUBLISH` `EXECUTE` |
+| Atomic counter | Not supported (read→modify→write is not atomic) | `INCR` — atomic, concurrency-safe |
+| TTL / Expiry | Not supported | `SETEX` — keys auto-expire |
+| Pub/Sub | Not supported | `PUBLISH` — message broadcasting |
 | Redis trigger | N/A | Not supported (Akamai HTTP trigger only) |
 
 ## Project Structure
@@ -80,6 +82,9 @@ GET  /redis/ping          Ping via EXECUTE
 GET  /redis/:key          Get string value
 POST /redis/:key          Set string value (plain text body)
 DELETE /redis/:key        Delete key
+POST /redis/:key/incr     Atomic counter (INCR) — not possible with built-in KV
+POST /redis/:key/setex    Set with TTL expiry  {"value":"…","ttl":60}
+POST /redis/pub/:channel  Publish message to channel (pub/sub)
 ```
 
 ## Local Development

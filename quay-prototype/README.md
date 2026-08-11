@@ -52,14 +52,36 @@ spin aka deploy --build \
 
 ## API
 
+### PostgreSQL CRUD
 ```
-GET  /                        API listing
-GET  /products                List all products
-GET  /products/:id            Get product by UUID
-POST /products                Create product  { "name": "...", "price": 9.99 }
-PUT  /products/:id            Update product  { "name": "...", "price": 9.99 }
-DELETE /products/:id          Delete product
+GET  /                    API listing
+GET  /products            List all products
+GET  /products/:id        Get product by UUID
+POST /products            Create product  { "name": "...", "price": 9.99 }
+PUT  /products/:id        Update product  { "name": "...", "price": 9.99 }
+DELETE /products/:id      Delete product
 ```
+
+### Built-in KV Store
+```
+GET  /kv                  List all keys
+GET  /kv/:key             Get JSON value
+POST /kv/:key             Set JSON value (any valid JSON body)
+DELETE /kv/:key           Delete key
+```
+
+### Outbound Redis (full Redis features beyond KV)
+```
+GET  /redis/ping          Ping via EXECUTE (connectivity check)
+GET  /redis/:key          Get string value
+POST /redis/:key          Set string value (plain text body)
+DELETE /redis/:key        Delete key
+POST /redis/:key/incr     Atomic counter — INCR (KV cannot: read→modify→write is not atomic)
+POST /redis/:key/setex    Set with TTL expiry { "value": "...", "ttl": 60 }
+POST /redis/pub/:channel  Publish message to channel (KV has no pub/sub)
+```
+
+The last three endpoints are Redis-only — they demonstrate capabilities that the built-in KV store cannot provide.
 
 ## Example Curl Commands
 
