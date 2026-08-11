@@ -89,6 +89,9 @@ router.get("/", () => ok({
       "GET  /redis/:key",
       "POST /redis/:key",
       "DELETE /redis/:key",
+      "POST /redis/:key/incr",
+      "POST /redis/:key/setex",
+      "POST /redis/pub/:channel",
     ],
   },
 }));
@@ -346,6 +349,61 @@ router.delete("/redis/:key", ({ params }, extra) => {
     const conn = getRedisConn((extra as any));
     conn.del([key]);
     return ok({ status: "deleted", key });
+  } catch (e: any) {
+    return serverError(errMsg(e));
+  }
+});
+
+// ---------- Redis-only features (not available in built-in KV) ---------------
+
+// Atomic counter — INCR. Built-in KV would need read→modify→write (not atomic).
+router.post("/redis/:key/incr", ({ params }, extra) => {
+  const { key } = params;
+  try {
+    const conn = getRedisConn((extra as any));
+    const newVal = conn.incr(key);
+    return ok({ key, value: Number(newVal) });
+  } catch (e: any) {
+    return serverError(errMsg(e));
+  }
+});
+
+// Pub/Sub — publish a message to a channel
+router.post("/redis/pub/:channel", async (request, extra) => {
+  const { channel } = request.params;
+  const body = await request.arrayBuffer();
+  const message = body ? decoder.decode(body) : "";
+  if (!message) return badRequest("Missing message body");
+
+  try {
+    const conn = getRedisConn((extra as any));
+    const receivers = conn.publish(channel, new Uint8Array(new TextEncoder().encode(message)));
+    return ok({ channel, message, receivers: Number(receivers) });
+  } catch (e: any) {
+    return serverError(errMsg(e));
+  }
+});
+
+// SETEX — set key with TTL (automatic expiry). Built-in KV has no TTL.
+router.post("/redis/:key/setex", async (request, extra) => {
+  const { key } = request.params;
+  const body = await request.arrayBuffer();
+  if (!body) return badRequest("Missing JSON body");
+
+  let payload: any;
+  try {
+    payload = JSON.parse(decoder.decode(body));
+  } catch {
+    return badRequest("Invalid JSON body");
+  }
+  if (!payload.value || typeof payload.ttl !== "number") {
+    return badRequest('Expected {"value": "...", "ttl": 60}');
+  }
+
+  try {
+    const conn = getRedisConn((extra as any));
+    conn.execute("SETEX", [key, payload.ttl.toString(), payload.value]);
+    return ok({ status: "set", key, ttl: payload.ttl });
   } catch (e: any) {
     return serverError(errMsg(e));
   }
